@@ -14,7 +14,7 @@
 
 typedef int HeapqData_t;
 
-typedef int HeapqKey_t;
+typedef unsigned int HeapqKey_t;
 
 typedef struct HeapqPair_t
 {
@@ -29,6 +29,18 @@ typedef struct Heapq_t
     size_t real_size;
     size_t capacity;
 } Heapq_t;
+
+typedef struct Heapq_iterator_t
+{
+    size_t index;
+    Heapq_t *heapq;
+} Heapq_iterator_t;
+
+int Heapq_iterator_get_data(Heapq_iterator_t iter, HeapqData_t *data);
+
+int Heapq_iterator_move_next(Heapq_iterator_t *iter);
+
+int Heapq_iterator_fetch(Heapq_iterator_t *iter, Heapq_t *heapq);
 
 int Heapq_print(Heapq_t *heapq);
 
