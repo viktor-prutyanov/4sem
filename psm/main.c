@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <math.h>
+#include <unistd.h>
 
 #include "psm.h"
 
@@ -71,9 +72,12 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    printf("Segment is [%lf ; %lf], number of threads is %lu, f(x) = %s\n", begin, end, threads_num, FUNC_STR); 
+    long int cpus_num = sysconf(_SC_NPROCESSORS_ONLN);
 
-    printf("Result is %lf\n", calc_segm(begin, end, threads_num));
+    printf("Segment is [%lf ; %lf], num of threads is %lu, num of CPUs is %lu ,f(x) = %s\n", 
+            begin, end, threads_num, cpus_num, FUNC_STR); 
+
+    printf("Result is %lf\n", calc_segm(begin, end, threads_num, cpus_num));
 
     return 0;
 }
