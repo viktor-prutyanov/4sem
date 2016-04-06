@@ -11,26 +11,41 @@
  *  
  */
  
+#define _GNU_SOURCE 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <math.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <sched.h>
 
-#include "psm.h"
+#define FUNC(x) (sin(x))
+#define DELTA (0.00001)
+#define SEGM_BEGIN (-100.0)
+#define SEGM_END (700.0)
 
 extern int errno;
 
+typedef struct
+{
+    double result;
+    unsigned int threads_num;
+    unsigned int i;
+} calc_arg_t;
+
+void *calc_segm_approx_inc(void *arguments);
+
 int main(int argc, char *argv[])
 {
-    if (argc != 4)
+    if (argc != 2)
     {
-        printf("Usage: psm [number of threads] [begin] [end]\n");
+        printf("Usage: psm [number of threads]\n");
         return 1;
     }
 
     char *endptr;
-    
     long int threads_num = strtol(argv[1], &endptr, 10);
     if (errno == ERANGE)
     {
@@ -48,36 +63,59 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    double begin = strtod(argv[2], &endptr);
-    if (errno == ERANGE)
-    {
-        printf("Begin of segment is out of range.\n");
-        return 1;
-    }
-    else if (*endptr != '\0')
-    {
-        printf("Invalid begin of segment.\n");
-        return 1;
-    }
-
-    double end = strtod(argv[3], &endptr);
-    if (errno == ERANGE)
-    {
-        printf("End of segment is out of range.\n");
-        return 1;
-    }
-    else if (*endptr != '\0')
-    {
-        printf("Invalid end of segment.\n");
-        return 1;
-    }
-
     long int cpus_num = sysconf(_SC_NPROCESSORS_ONLN);
 
-    printf("Segment is [%lf ; %lf], num of threads is %lu, num of CPUs is %lu ,f(x) = %s\n", 
-            begin, end, threads_num, cpus_num, FUNC_STR); 
+    printf("Num of threads is %lu, num of CPUs is %lu\n", threads_num, cpus_num); 
 
-    printf("Result is %lf\n", calc_segm(begin, end, threads_num, cpus_num));
+    pthread_t *threads = (pthread_t *)malloc(threads_num * sizeof(pthread_t));
+    calc_arg_t *args = (calc_arg_t *)malloc(threads_num * sizeof(calc_arg_t));
+
+    for (unsigned int i = 0; i < threads_num; ++i)
+        args[i] = (calc_arg_t){ .result = 0., .i = i, .threads_num = threads_num };
+    
+    cpu_set_t set;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    for (unsigned int i = 0; i < threads_num; ++i)
+    {
+        CPU_ZERO(&set);
+        CPU_SET(i % cpus_num, &set); 
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &set); 
+        pthread_create(&threads[i], &attr, calc_segm_approx_inc, (void *)(args + i)); 
+    }
+
+    for (unsigned int i = 0; i < threads_num; ++i)
+        pthread_join(threads[i], NULL);
+
+    double total = 0.; 
+    for (unsigned int i = 0; i < threads_num; ++i)
+        total += args[i].result;
+
+    printf("Result is %lf\n", total);
+
+    free(threads);
+    free(args);
 
     return 0;
+}
+
+void *calc_segm_approx_inc(void *arguments)
+{      
+    calc_arg_t *arg = (calc_arg_t *)arguments;
+
+    double subsegm_len = (SEGM_END - SEGM_BEGIN) / arg->threads_num;
+    unsigned long int subsubsegm_num = (unsigned long int)floor(subsegm_len / DELTA);
+    double subsegm_begin = SEGM_BEGIN + arg->i * subsegm_len;
+    double calc_begin = subsegm_begin;
+
+    for (unsigned long int i = 0; i < subsubsegm_num; ++i)
+    {
+        arg->result += DELTA * (FUNC(calc_begin) + 4 * FUNC(calc_begin + DELTA / 2) + FUNC(calc_begin + DELTA)) / 6;
+        calc_begin += DELTA;
+    }
+
+    double last_delta = subsegm_begin + subsegm_len - calc_begin;
+    arg->result += last_delta * (FUNC(calc_begin) + 4 * FUNC(calc_begin + last_delta / 2) + FUNC(calc_begin + last_delta)) / 6;
+
+    return NULL;
 }
