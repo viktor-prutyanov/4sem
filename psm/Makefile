@@ -1,9 +1,9 @@
 all: psm
 
 psm: main.o psm.o 
-	gcc -lm -lpthread -o $@ $^
+	gcc -O1 -std=c99 -lm -lpthread -o $@ $^
 
-CFLAGS := -Wall -MD
+CFLAGS := -Wall -MD -O1 -std=c99
 -include *.d
 .PHONY: all clean
 
