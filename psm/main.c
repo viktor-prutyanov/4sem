@@ -24,7 +24,7 @@
 #define FUNC(x) (sin(x))
 #define DELTA (0.00001)
 #define SEGM_BEGIN (-100.0)
-#define SEGM_END (700.0)
+#define SEGM_END (300.0)
 
 extern int errno;
 
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 
     long int cpus_num = sysconf(_SC_NPROCESSORS_ONLN);
 
-    printf("Num of threads is %lu, num of CPUs is %lu\n", threads_num, cpus_num); 
+    //printf("Num of threads is %lu, num of CPUs is %lu\n", threads_num, cpus_num); 
 
     pthread_t *threads = (pthread_t *)malloc(threads_num * sizeof(pthread_t));
     calc_arg_t *args = (calc_arg_t *)malloc(threads_num * sizeof(calc_arg_t));
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
     for (unsigned int i = 0; i < threads_num; ++i)
         total += args[i].result;
 
-    printf("Result is %lf\n", total);
+    //printf("Result is %lf\n", total);
 
     free(threads);
     free(args);

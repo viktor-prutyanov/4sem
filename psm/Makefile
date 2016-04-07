@@ -9,4 +9,4 @@ $(PROJECT_NAME): $(SOURCE)
 	$(CC) $(CFLAGS) $(LDLIBS) -o $@ $<
 
 clean:
-	rm -rf *.o $(PROJECT_NAME)
+	rm -rf *.d *.o $(PROJECT_NAME)
