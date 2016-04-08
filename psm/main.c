@@ -23,8 +23,8 @@
 
 #define FUNC(x) (sin(x))
 #define DELTA (0.00001)
-#define SEGM_BEGIN (-100.0)
-#define SEGM_END (300.0)
+#define SEGM_BEGIN (-1000.0)
+#define SEGM_END (1000.0)
 
 extern int errno;
 
@@ -63,26 +63,14 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    long int cpus_num = sysconf(_SC_NPROCESSORS_ONLN);
-
-    //printf("Num of threads is %lu, num of CPUs is %lu\n", threads_num, cpus_num); 
-
     pthread_t *threads = (pthread_t *)malloc(threads_num * sizeof(pthread_t));
     calc_arg_t *args = (calc_arg_t *)malloc(threads_num * sizeof(calc_arg_t));
 
     for (unsigned int i = 0; i < threads_num; ++i)
-        args[i] = (calc_arg_t){ .result = 0., .i = i, .threads_num = threads_num };
+        args[i] = (calc_arg_t){ .i = i, .threads_num = threads_num };
     
-    cpu_set_t set;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
     for (unsigned int i = 0; i < threads_num; ++i)
-    {
-        CPU_ZERO(&set);
-        CPU_SET(i % cpus_num, &set); 
-        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &set); 
-        pthread_create(&threads[i], &attr, calc_segm_approx_inc, (void *)(args + i)); 
-    }
+        pthread_create(&threads[i], NULL, calc_segm_approx_inc, (void *)(args + i)); 
 
     for (unsigned int i = 0; i < threads_num; ++i)
         pthread_join(threads[i], NULL);
@@ -107,15 +95,16 @@ void *calc_segm_approx_inc(void *arguments)
     unsigned long int subsubsegm_num = (unsigned long int)floor(subsegm_len / DELTA);
     double subsegm_begin = SEGM_BEGIN + arg->i * subsegm_len;
     double calc_begin = subsegm_begin;
+    double result = 0.;
 
     for (unsigned long int i = 0; i < subsubsegm_num; ++i)
     {
-        arg->result += DELTA * (FUNC(calc_begin) + 4 * FUNC(calc_begin + DELTA / 2) + FUNC(calc_begin + DELTA)) / 6;
+        result += DELTA * (FUNC(calc_begin) + 4 * FUNC(calc_begin + DELTA / 2) + FUNC(calc_begin + DELTA)) / 6;
         calc_begin += DELTA;
     }
 
     double last_delta = subsegm_begin + subsegm_len - calc_begin;
-    arg->result += last_delta * (FUNC(calc_begin) + 4 * FUNC(calc_begin + last_delta / 2) + FUNC(calc_begin + last_delta)) / 6;
+    arg->result = result + last_delta * (FUNC(calc_begin) + 4 * FUNC(calc_begin + last_delta / 2) + FUNC(calc_begin + last_delta)) / 6;
 
     return NULL;
 }
