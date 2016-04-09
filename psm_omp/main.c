@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    
     #pragma omp parallel for num_threads(threads_num)
     for (unsigned int i = 0; i < threads_num; ++i)
-        printf("{%d}\n", omp_get_num_threads());
+        //printf("{%d}\n", omp_get_num_threads());
         calc_segm_approx_inc(args + i);
 
     double total = 0.; 
