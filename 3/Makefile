@@ -4,9 +4,9 @@ supervisor: supervisor.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 worker: worker.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -lm -o $@ $^
 
-CFLAGS := -Wall -O2 -std=c11
+CFLAGS := -Wall -O2 -std=c99 -pthread
 .PHONY: all clean
 
 clean:
