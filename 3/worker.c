@@ -10,6 +10,7 @@
  *  @author Viktor Prutyanov mailto:viktor.prutyanov@phystech.edu 
  *  
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -24,12 +25,22 @@
 
 #include "common.h"
 
-#define MAX_MSG_SIZE 256
 #define FUNC(x) (sin(x))
 #define DELTA (0.00001)
 
-int supervisor_tcp_serve(struct sockaddr_in *sock_in);
-int supervisor_udp_receive(struct sockaddr_in *sock_in, socklen_t *sock_len);
+struct calc_subsegm_arg_t
+{
+    double begin;
+    double end;
+    double result;
+    unsigned int threads_num;
+    unsigned int i;
+};
+
+typedef struct calc_subsegm_arg_t calc_subsegm_arg_t;
+
+int tcp_serve(struct sockaddr_in *sock_in);
+int udp_receive(struct sockaddr_in *sock_in, socklen_t *sock_len);
 inline double calc_segm(calc_segm_arg_t arg);
 void *calc_subsegm(void *arguments);
 
@@ -40,7 +51,7 @@ int main(int argc, char *argv[])
 
     printf("Waiting for supervisors' requests...\n");
     errno = 0;
-    if (supervisor_udp_receive(&udp_sock_in, &udp_sock_in_len) != 0)
+    if (udp_receive(&udp_sock_in, &udp_sock_in_len) != 0)
     {
         perror(NULL);
         return -1;
@@ -58,7 +69,7 @@ int main(int argc, char *argv[])
 
     printf("Connecting to supevisor...\n");
     errno = 0;
-    if (supervisor_tcp_serve(&tcp_sock_in) != 0)
+    if (tcp_serve(&tcp_sock_in) != 0)
     {
         perror(NULL);
         return -1;
@@ -67,7 +78,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-int supervisor_tcp_serve(struct sockaddr_in *sock_in)
+int tcp_serve(struct sockaddr_in *sock_in)
 {
     int sock_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock_fd < 0)
@@ -76,12 +87,15 @@ int supervisor_tcp_serve(struct sockaddr_in *sock_in)
     if (connect(sock_fd, (struct sockaddr *)sock_in, sizeof(struct sockaddr_in)) != 0)
         return -1;
 
-    calc_segm_arg_t args;
+    calc_segm_arg_t arg;
 
-    if (recv(sock_fd, &args, sizeof(calc_segm_arg_t), 0) != sizeof(calc_segm_arg_t))
+    if (recv(sock_fd, &arg, sizeof(struct calc_segm_arg_t), 0) != sizeof(struct calc_segm_arg_t))
+    {
+        printf("Failed to receive args.\n");
         return -1;
+    }
 
-    double result = calc_segm(args);
+    double result = calc_segm(arg);
 
     if (send(sock_fd, &result, sizeof(double), 0) != sizeof(double))
         return -1;
@@ -91,7 +105,7 @@ int supervisor_tcp_serve(struct sockaddr_in *sock_in)
     return 0;
 }
 
-int supervisor_udp_receive(struct sockaddr_in *sock_in, socklen_t *sock_in_len)
+int udp_receive(struct sockaddr_in *sock_in, socklen_t *sock_in_len)
 {
     int sock_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sock_fd < 0)
@@ -112,27 +126,16 @@ int supervisor_udp_receive(struct sockaddr_in *sock_in, socklen_t *sock_in_len)
     sock_in->sin_port = htons(0);
     sock_in->sin_family = AF_INET;
 
-    char buffer[MAX_MSG_SIZE] = {0};
-    if (recvfrom(sock_fd, buffer, MAX_MSG_SIZE, 0, (struct sockaddr *)sock_in, sock_in_len) < 0)
+    char buffer[1] = "";
+    if (recvfrom(sock_fd, buffer, 1, 0, (struct sockaddr *)sock_in, sock_in_len) < 0)
         return -1;
-
-    printf("%.*s\n", MAX_MSG_SIZE, buffer);
 
     close(sock_fd);
 
     return 0;
 }
 
-typedef struct
-{
-    double begin;
-    double end;
-    double result;
-    unsigned int threads_num;
-    unsigned int i;
-} calc_subsegm_arg_t;
-
-inline double calc_segm(calc_segm_arg_t arg)
+inline double calc_segm(struct calc_segm_arg_t arg)
 {
     double segm_len = (arg.end - arg.begin) / arg.workers_num;
     double segm_begin = arg.begin + arg.i * segm_len;
@@ -141,10 +144,15 @@ inline double calc_segm(calc_segm_arg_t arg)
     unsigned int threads_num = arg.threads_num;
 
     pthread_t *threads = (pthread_t *)malloc(threads_num * sizeof(pthread_t));
-    calc_subsegm_arg_t *args = (calc_subsegm_arg_t *)malloc(threads_num * sizeof(calc_subsegm_arg_t));
+    calc_subsegm_arg_t *args = (calc_subsegm_arg_t *)malloc(threads_num * sizeof(struct calc_subsegm_arg_t));
 
     for (unsigned int i = 0; i < threads_num; ++i)
-        args[i] = (calc_subsegm_arg_t){ .begin = segm_begin, .end = segm_end, .i = i, .threads_num = arg.threads_num };
+        args[i] = (calc_subsegm_arg_t){ 
+            .begin = segm_begin,
+            .end = segm_end,
+            .i = i,
+            .threads_num = arg.threads_num 
+        };
     
     for (unsigned int i = 0; i < threads_num; ++i)
         pthread_create(&threads[i], NULL, calc_subsegm, (void *)(args + i)); 

@@ -14,16 +14,13 @@
 #define WORKER_UDP_PORT 8001
 #define SUPERVISOR_MAIN_TCP_PORT 8003
 
-typedef struct
+struct calc_segm_arg_t
 {
     double begin;
     double end;
     unsigned int workers_num;
     unsigned int threads_num;
     unsigned int i;
-} calc_segm_arg_t;
+};
 
-typedef struct
-{
-    double result;
-} calc_segm_result_t;
+typedef struct calc_segm_arg_t calc_segm_arg_t;
