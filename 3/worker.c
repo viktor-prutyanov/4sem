@@ -46,7 +46,7 @@ void *calc_subsegm(void *arguments);
 
 int main(int argc, char *argv[])
 {
-    socklen_t udp_sock_in_len;
+    socklen_t udp_sock_in_len = sizeof(struct sockaddr_in);
     struct sockaddr_in udp_sock_in = {0};
 
     printf("Waiting for supervisors' requests...\n");
@@ -151,7 +151,7 @@ inline double calc_segm(struct calc_segm_arg_t arg)
             .begin = segm_begin,
             .end = segm_end,
             .i = i,
-            .threads_num = arg.threads_num 
+            .threads_num = ((arg.threads_num > 0) ? arg.threads_num : sysconf(_SC_NPROCESSORS_ONLN))
         };
     
     for (unsigned int i = 0; i < threads_num; ++i)

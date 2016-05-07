@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
     if (argc != 5)
     {
         printf("usage: supervisor <workers_num> <threads_num> <begin> <end>\n");
+        printf("\tset threads_num = 0 to use maximum threads at each worker\n");
         return -1;
     }
     
@@ -62,9 +63,10 @@ int main(int argc, char *argv[])
     int main_tcp_sock_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     
     int optval = 1;
-    struct sockaddr_in main_tcp_sock_in = {0};
     setsockopt(main_tcp_sock_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
+    struct sockaddr_in main_tcp_sock_in = {0};
+    
     main_tcp_sock_in.sin_addr.s_addr = htonl(INADDR_ANY);
     main_tcp_sock_in.sin_port = htons(SUPERVISOR_MAIN_TCP_PORT);
     main_tcp_sock_in.sin_family = AF_INET;
@@ -102,7 +104,7 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
 
     char str_addr[INET_ADDRSTRLEN] = {0};
 
-    socklen_t tcp_sock_in_len;
+    socklen_t tcp_sock_in_len = sizeof(struct sockaddr_in);
     struct tcp_conn_t *workers = (struct tcp_conn_t *)calloc(workers_num, sizeof(tcp_conn_t));
     
     while(1)
@@ -115,9 +117,17 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
                 printf("Excess worker tried to connect.\n");
             else 
             {
+                errno = 0;
                 workers[accepted].sock_fd = accept(main_tcp_sock_fd, (struct sockaddr *)&workers[accepted].sock_in, &tcp_sock_in_len);
+                if (workers[accepted].sock_fd == -1)
+                {
+                    perror(NULL);
+                    exit(-1);
+                }
+                                
                 inet_ntop(AF_INET, &(workers[accepted].sock_in.sin_addr), str_addr, INET_ADDRSTRLEN);
                 printf("Worker at %s:%d connected.\n", str_addr, ntohs(workers[accepted].sock_in.sin_port));
+                
                 workers[accepted].accepted = true;
                 workers[accepted].sent     = false;
                 workers[accepted].received = false;
@@ -136,13 +146,21 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
         {
             if (FD_ISSET(workers[i].sock_fd, &write_fds))
             {
-                send(workers[i].sock_fd, &workers[i].arg, sizeof(calc_segm_arg_t), 0);
+                if (send(workers[i].sock_fd, &workers[i].arg, sizeof(calc_segm_arg_t), 0) != sizeof(calc_segm_arg_t))
+                {
+                    printf("Error during sending args.\n");
+                    exit(-1);
+                }
                 workers[i].sent = true;
             }
             else if (FD_ISSET(workers[i].sock_fd, &read_fds))
             {
                 double worker_result = 0.;
-                recv(workers[i].sock_fd, &worker_result, sizeof(double), 0);
+                if (recv(workers[i].sock_fd, &worker_result, sizeof(double), 0) != sizeof(double))
+                {
+                    printf("Error during receiving result.\n");
+                    exit(-1);
+                }
                 workers[i].received = true;
                 result += worker_result;
                 ++result_received;
@@ -178,7 +196,7 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
 int udp_broadcast()
 {
     int sock_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (sock_fd < 0)
+    if (sock_fd == -1)
         return -1;
 
     int optval = 1;
@@ -255,10 +273,14 @@ long int get_threads_num(char *argv[])
         printf("Invalid number of threads.\n");
         exit(-1);
     }
-    else if (threads_num <= 0)
+    else if (threads_num < 0)
     {
-        printf("Nonpositive number of threads.\n");
+        printf("Negative number of threads.\n");
         exit(-1);
+    }
+    else if (threads_num == 0)
+    {
+        printf("Workers will choose theirs own maximum number of threads.\n");
     }
 
     return threads_num;      

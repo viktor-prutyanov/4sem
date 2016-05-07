@@ -10,4 +10,4 @@ CFLAGS := -Wall -O2 -std=c99 -pthread
 .PHONY: all clean
 
 clean:
-	rm -rf *.o dsm
+	rm -rf *.o supervisor worker
