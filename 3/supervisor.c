@@ -114,7 +114,11 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
         if (FD_ISSET(main_tcp_sock_fd, &read_fds))
         {
             if (accepted == workers_num)
-                printf("Excess worker tried to connect.\n");
+            {
+                printf("Excess worker tried to connect. Connection will be refused.\n");
+                int sock_fd = accept(main_tcp_sock_fd, NULL, NULL);
+                close(sock_fd);
+            }
             else 
             {
                 errno = 0;
