@@ -11,14 +11,19 @@
  *  
  */
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/select.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <math.h>
 #include <pthread.h>
@@ -84,15 +89,25 @@ int tcp_serve(struct sockaddr_in *sock_in)
     if (sock_fd < 0)
         return -1;
 
+    int optval = 1;
+    int keepidle = 5;
+    int keepintvl = 1;
+    int keepcnt = 5;
+    
+    setsockopt(sock_fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
+    setsockopt(sock_fd, SOL_TCP, TCP_KEEPIDLE, &keepidle, sizeof(keepidle));
+    setsockopt(sock_fd, SOL_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl));
+    setsockopt(sock_fd, SOL_TCP, TCP_KEEPCNT, &keepcnt, sizeof(keepcnt));
+
     if (connect(sock_fd, (struct sockaddr *)sock_in, sizeof(struct sockaddr_in)) != 0)
         return -1;
-
+    
     calc_segm_arg_t arg;
 
     if (recv(sock_fd, &arg, sizeof(struct calc_segm_arg_t), 0) != sizeof(struct calc_segm_arg_t))
     {
         printf("Failed to receive args.\n");
-        return -1;
+        exit(-1);
     }
 
     double result = calc_segm(arg);
@@ -141,17 +156,17 @@ inline double calc_segm(struct calc_segm_arg_t arg)
     double segm_begin = arg.begin + arg.i * segm_len;
     double segm_end = segm_begin + segm_len;
 
-    unsigned int threads_num = arg.threads_num;
+    unsigned int threads_num = ((arg.threads_num > 0) ? arg.threads_num : sysconf(_SC_NPROCESSORS_ONLN));
 
     pthread_t *threads = (pthread_t *)malloc(threads_num * sizeof(pthread_t));
     calc_subsegm_arg_t *args = (calc_subsegm_arg_t *)malloc(threads_num * sizeof(struct calc_subsegm_arg_t));
-
+    
     for (unsigned int i = 0; i < threads_num; ++i)
         args[i] = (calc_subsegm_arg_t){ 
             .begin = segm_begin,
             .end = segm_end,
             .i = i,
-            .threads_num = ((arg.threads_num > 0) ? arg.threads_num : sysconf(_SC_NPROCESSORS_ONLN))
+            .threads_num = threads_num
         };
     
     for (unsigned int i = 0; i < threads_num; ++i)

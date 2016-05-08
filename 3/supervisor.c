@@ -11,6 +11,8 @@
  *  
  */
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -21,6 +23,7 @@
 #include <sys/types.h>
 #include <sys/select.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 
 #include "common.h"
@@ -60,7 +63,7 @@ int main(int argc, char *argv[])
     double begin = get_segm_begin(argv);
     double end = get_segm_end(argv);
 
-    int main_tcp_sock_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int main_tcp_sock_fd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
     
     int optval = 1;
     setsockopt(main_tcp_sock_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
@@ -97,6 +100,11 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
     FD_ZERO(&write_fds);
     FD_SET(main_tcp_sock_fd, &read_fds);
 
+    int optval = 1;
+    int keepidle = 5;
+    int keepintvl = 1;
+    int keepcnt = 5;
+    
     double result = 0.;
 
     long int accepted = 0;
@@ -122,13 +130,18 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
             else 
             {
                 errno = 0;
-                workers[accepted].sock_fd = accept(main_tcp_sock_fd, (struct sockaddr *)&workers[accepted].sock_in, &tcp_sock_in_len);
+                workers[accepted].sock_fd = accept4(main_tcp_sock_fd, (struct sockaddr *)&workers[accepted].sock_in, &tcp_sock_in_len, SOCK_NONBLOCK);
                 if (workers[accepted].sock_fd == -1)
                 {
                     perror(NULL);
                     exit(-1);
                 }
-                                
+    
+                setsockopt(workers[accepted].sock_fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
+                setsockopt(workers[accepted].sock_fd, SOL_TCP, TCP_KEEPIDLE, &keepidle, sizeof(keepidle));
+                setsockopt(workers[accepted].sock_fd, SOL_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl));
+                setsockopt(workers[accepted].sock_fd, SOL_TCP, TCP_KEEPCNT, &keepcnt, sizeof(keepcnt));
+             
                 inet_ntop(AF_INET, &(workers[accepted].sock_in.sin_addr), str_addr, INET_ADDRSTRLEN);
                 printf("Worker at %s:%d connected.\n", str_addr, ntohs(workers[accepted].sock_in.sin_port));
                 
@@ -187,7 +200,7 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
                 FD_SET(workers[i].sock_fd, &read_fds);
         }
             
-        if (accepted !=  workers_num)
+        if (accepted != workers_num)
             FD_SET(main_tcp_sock_fd, &read_fds);
     }
 
