@@ -88,8 +88,6 @@ int main(int argc, char *argv[])
 
     printf("Result is %lg\n", serve_workers(main_tcp_sock_fd, begin, end, workers_num, threads_num));
 
-    close(main_tcp_sock_fd);
-
     return 0;
 }
 
@@ -155,7 +153,9 @@ double serve_workers(int main_tcp_sock_fd, double begin, double end, unsigned in
                     .workers_num = workers_num,
                     .threads_num = threads_num
                 };
-                ++accepted;
+
+                if (++accepted == workers_num)
+                    close(main_tcp_sock_fd);
             }
         }
 
