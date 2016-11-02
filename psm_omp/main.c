@@ -18,13 +18,12 @@
 #include <errno.h>
 #include <math.h>
 #include <unistd.h>
-#include <sched.h>
 #include <omp.h>
 
-#define FUNC(x) (sin(x))
+#define FUNC(x) (x*exp(x))
 #define DELTA (0.00001)
-#define SEGM_BEGIN (-1000.0)
-#define SEGM_END (1000.0)
+#define SEGM_BEGIN (-3000.0)
+#define SEGM_END (-1000.0)
 
 extern int errno;
 
@@ -68,16 +67,16 @@ int main(int argc, char *argv[])
     for (unsigned int i = 0; i < threads_num; ++i)
         args[i] = (calc_arg_t){ .i = i, .threads_num = threads_num };
    
-    #pragma omp parallel for num_threads(threads_num)
-    for (unsigned int i = 0; i < threads_num; ++i)
-        //printf("{%d}\n", omp_get_num_threads());
-        calc_segm_approx_inc(args + i);
-
     double total = 0.; 
+    
+    #pragma omp parallel for reduction (+: total)
     for (unsigned int i = 0; i < threads_num; ++i)
+    {
+        calc_segm_approx_inc(args + i);
         total += args[i].result;
+    }
 
-    //printf("Result is %lf\n", total);
+    printf("Result is %lf\n", total);
 
     free(args);
 
