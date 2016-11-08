@@ -21,10 +21,10 @@
 #include <pthread.h>
 #include <sched.h>
 
-#define FUNC(x) (sin(x))
+#define FUNC(x) (x*exp(x))
 #define DELTA (0.00001)
-#define SEGM_BEGIN (-1000.0)
-#define SEGM_END (1000.0)
+#define SEGM_BEGIN (-2000.0)
+#define SEGM_END (-1000.0)
 
 extern int errno;
 
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     for (unsigned int i = 0; i < threads_num; ++i)
         total += args[i].result;
 
-    //printf("Result is %lf\n", total);
+    printf("Result is %lf\n", total);
 
     free(threads);
     free(args);
