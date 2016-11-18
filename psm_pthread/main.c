@@ -21,10 +21,10 @@
 #include <pthread.h>
 #include <sched.h>
 
-#define FUNC(x) (x*exp(x))
+#define FUNC(x) ((x)*exp(x))
 #define DELTA (0.00001)
-#define SEGM_BEGIN (-2000.0)
-#define SEGM_END (-1000.0)
+#define SEGM_BEGIN (-1000.0)
+#define SEGM_END (0.)
 
 extern int errno;
 
